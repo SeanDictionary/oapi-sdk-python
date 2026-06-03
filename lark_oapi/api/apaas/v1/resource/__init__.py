@@ -12,3 +12,7 @@ from .approval_task import *
 from .seat_activity import *
 from .seat_assignment import *
 from .user_task import *
+from .workspace import *
+from .workspace_enum import *
+from .workspace_table import *
+from .workspace_view import *

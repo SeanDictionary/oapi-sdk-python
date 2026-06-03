@@ -1,4 +1,5 @@
 from .ability import *
+from .ability_assessment import *
 from .acceptance import *
 from .account import *
 from .account_referrer import *
@@ -32,6 +33,7 @@ from .application_detail_info import *
 from .application_detail_portal_info import *
 from .application_job import *
 from .application_job_address import *
+from .application_migrate_record_info import *
 from .application_offer import *
 from .application_offer_attachment import *
 from .application_offer_basic_info import *
@@ -130,6 +132,7 @@ from .department_id import *
 from .di_data import *
 from .di_info import *
 from .dimension_ability import *
+from .dimension_ability_args import *
 from .dimension_assessment import *
 from .dimension_assessment_request import *
 from .dimension_option import *
@@ -389,6 +392,7 @@ from .site_resume_sns import *
 from .site_resume_work import *
 from .sns_info import *
 from .specific_relationship import *
+from .stage_count_info import *
 from .store import *
 from .subject import *
 from .talent import *

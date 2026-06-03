@@ -1,19 +1,23 @@
 import asyncio
 import base64
 import http
+import inspect
 import random
 import time
+from typing import Callable, Dict, Mapping, Optional
 from urllib.parse import urlparse, parse_qs
 
 import requests
 import websockets
+from websockets.exceptions import InvalidHandshake
 
 from lark_oapi.core.cache import ExpiringCache
-from lark_oapi.core.const import UTF_8, FEISHU_DOMAIN
+from lark_oapi.core.const import UTF_8, FEISHU_DOMAIN, USER_AGENT
 from lark_oapi.core.enum import LogLevel
 from lark_oapi.core.json import JSON
 from lark_oapi.core.log import logger
 from lark_oapi.core.utils import Strings
+from lark_oapi.core.utils.user_agent import build_user_agent
 from lark_oapi.event.dispatcher_handler import EventDispatcherHandler
 from lark_oapi.ws.const import *
 from lark_oapi.ws.enum import FrameType, MessageType
@@ -64,15 +68,40 @@ async def _select():
         await asyncio.sleep(3600)
 
 
-def _parse_ws_conn_exception(e: websockets.InvalidStatusCode):
-    code = e.headers.get(HEADER_HANDSHAKE_STATUS)
-    msg = e.headers.get(HEADER_HANDSHAKE_MSG)
+def _ws_connect_kwargs():
+    params = inspect.signature(websockets.connect).parameters
+    if "proxy" in params:
+        # websockets 15 enables environment proxy discovery by default. The SDK
+        # historically connected directly, so preserve that behavior when the
+        # parameter exists.
+        return {"proxy": None}
+    return {}
+
+
+def _get_ws_conn_exception_headers(e):
+    headers = getattr(e, "headers", None)
+    if headers is not None:
+        return headers
+
+    response = getattr(e, "response", None)
+    if response is None:
+        return None
+    return getattr(response, "headers", None)
+
+
+def _parse_ws_conn_exception(e):
+    headers = _get_ws_conn_exception_headers(e)
+    if headers is None:
+        raise e
+
+    code = headers.get(HEADER_HANDSHAKE_STATUS)
+    msg = headers.get(HEADER_HANDSHAKE_MSG)
     if code is None or msg is None:
         raise e
 
     code = int(code)
     if code == AUTH_FAILED:
-        auth_code = e.headers.get(HEADER_HANDSHAKE_AUTH_ERRCODE)
+        auth_code = headers.get(HEADER_HANDSHAKE_AUTH_ERRCODE)
         if int(auth_code) == EXCEED_CONN_LIMIT:
             raise ClientException(code, msg)
         else:
@@ -90,23 +119,42 @@ class Client(object):
                  log_level: LogLevel = LogLevel.INFO,
                  event_handler: EventDispatcherHandler = None,
                  domain: str = FEISHU_DOMAIN,
-                 auto_reconnect: bool = True) -> None:
+                 auto_reconnect: bool = True,
+                 source: Optional[str] = None,
+                 extra_ua_tags: Optional[list] = None,
+                 headers: Optional[Mapping[str, str]] = None) -> None:
         self._app_id: str = app_id
         self._app_secret: str = app_secret
         self._log_level: LogLevel = log_level
         self._event_handler: EventDispatcherHandler = event_handler
         self._auto_reconnect: bool = auto_reconnect
         self._domain: str = domain
+        self._headers: Dict[str, str] = dict(headers or {})
+        # UA used on the endpoint-discovery POST (and any future HTTP/WS
+        # handshakes from this client). ``extra_ua_tags`` is internal — sub-
+        # modules (e.g. FeishuChannel) pass ``["channel"]`` here.
+        self._user_agent: str = build_user_agent(source=source, extra_tags=extra_ua_tags)
         self._conn: Optional[websockets.WebSocketClientProtocol] = None
         self._conn_url: str = ""
         self._service_id: str = ""
         self._conn_id: str = ""
+        # Local defaults; the Feishu WS endpoint authoritatively replaces these
+        # via _configure() on every handshake (and may push updates mid-session
+        # via CONTROL frames). Matches node-sdk parent SDK — user-facing
+        # overrides are intentionally not exposed.
         self._reconnect_nonce: int = 30
         self._reconnect_count: int = -1
         self._reconnect_interval: int = 120
         self._ping_interval: int = 120
         self._cache: ExpiringCache = ExpiringCache(clear_interval=30)
         self._lock = asyncio.Lock()
+        # Observer hooks for higher-level wrappers (e.g. FeishuChannel) to
+        # react to reconnect lifecycle. ``on_reconnecting`` fires when the
+        # client decides a connection was lost and starts retrying;
+        # ``on_reconnected`` fires on the first successful re-establishment.
+        # Both default to no-op so existing callers see no behaviour change.
+        self.on_reconnecting: Callable[[], None] = lambda: None
+        self.on_reconnected: Callable[[], None] = lambda: None
         logger.setLevel(log_level.value)
 
     def start(self) -> None:
@@ -149,7 +197,7 @@ class Client(object):
             conn_id = q[DEVICE_ID][0]
             service_id = q[SERVICE_ID][0]
 
-            conn = await websockets.connect(conn_url)
+            conn = await websockets.connect(conn_url, **_ws_connect_kwargs())
             self._conn = conn
             self._conn_url = conn_url
             self._conn_id = conn_id
@@ -157,7 +205,7 @@ class Client(object):
 
             logger.info(self._fmt_log("connected to {}", conn_url))
             loop.create_task(self._receive_message_loop())
-        except websockets.InvalidStatusCode as e:
+        except InvalidHandshake as e:
             _parse_ws_conn_exception(e)
         finally:
             self._lock.release()
@@ -181,11 +229,14 @@ class Client(object):
         if Strings.is_empty(self._app_id) or Strings.is_empty(self._app_secret):
             raise ClientException(NO_CREDENTIAL, "app_id or app_secret is null")
 
+        headers = dict(self._headers)
+        headers.update({
+            "locale": "zh",
+            USER_AGENT: self._user_agent,
+        })
         response = requests.post(
             self._domain + GEN_ENDPOINT_URI,
-            headers={
-                "locale": "zh",
-            },
+            headers=headers,
             json={
                 "AppID": self._app_id,
                 "AppSecret": self._app_secret,
@@ -260,7 +311,7 @@ class Client(object):
         try:
             start = int(round(time.time() * 1000))
             if message_type == MessageType.EVENT:
-                result = self._event_handler.do_without_validation(pl)
+                result = self._event_handler._do_without_validation(pl)
             elif message_type == MessageType.CARD:
                 return
             else:
@@ -281,6 +332,13 @@ class Client(object):
         await self._write_message(frame.SerializeToString())
 
     async def _reconnect(self):
+        # Notify subscribers that we're about to try reconnecting. Wrapped in
+        # try/except so a misbehaving observer can never derail reconnect.
+        try:
+            self.on_reconnecting()
+        except Exception as e:  # pragma: no cover - defensive
+            logger.warning(self._fmt_log("on_reconnecting callback raised: {}", e))
+
         # 首次重连随机抖动
         if self._reconnect_nonce > 0:
             nonce = random.random() * self._reconnect_nonce
@@ -290,6 +348,7 @@ class Client(object):
         if self._reconnect_count >= 0:
             for i in range(self._reconnect_count):
                 if await self._try_connect(i):
+                    self._fire_on_reconnected()
                     return
                 await asyncio.sleep(self._reconnect_interval)
             raise ServerUnreachableException(
@@ -298,9 +357,16 @@ class Client(object):
             i = 0
             while True:
                 if await self._try_connect(i):
+                    self._fire_on_reconnected()
                     return
                 await asyncio.sleep(self._reconnect_interval)
                 i += 1
+
+    def _fire_on_reconnected(self) -> None:
+        try:
+            self.on_reconnected()
+        except Exception as e:  # pragma: no cover - defensive
+            logger.warning(self._fmt_log("on_reconnected callback raised: {}", e))
 
     async def _try_connect(self, cnt: int) -> bool:
         logger.info(self._fmt_log("trying to reconnect for the {} time", _ordinal(cnt + 1)))

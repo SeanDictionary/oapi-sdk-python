@@ -48,6 +48,8 @@ from .employment import *
 from .employment_cost_center import *
 from .employment_create import *
 from .employment_leave_balance import *
+from .entity_field_req import *
+from .entity_field_result import *
 from .enum import *
 from .enum_field_option import *
 from .enum_field_setting import *
@@ -89,6 +91,7 @@ from .job_family import *
 from .job_level import *
 from .leave_balance import *
 from .leave_duration import *
+from .leave_extend_item import *
 from .leave_granting_record import *
 from .leave_process_info import *
 from .leave_request import *
@@ -97,6 +100,7 @@ from .leave_request_created_error_message import *
 from .leave_request_created_result import *
 from .leave_request_detail import *
 from .leave_subtype import *
+from .leave_tag_conf import *
 from .leave_time import *
 from .leave_type import *
 from .location import *
@@ -142,6 +146,7 @@ from .sort_option import *
 from .subdivision import *
 from .subregion import *
 from .support_cost_center_item import *
+from .tag import *
 from .temp import *
 from .text_field_setting import *
 from .tranfer_employment_info import *
@@ -149,6 +154,7 @@ from .transfer_info import *
 from .transfer_reason import *
 from .transfer_type import *
 from .user_id import *
+from .view_employment_info import *
 from .wk_calendar_date import *
 from .wk_calendar_i18n import *
 from .wk_option import *
@@ -468,6 +474,7 @@ from .list_working_hours_type_response_body import *
 from .list_working_hours_type_response import *
 from .patch_working_hours_type_response_body import *
 from .patch_working_hours_type_response import *
+from .p2_corehr_common_data_id_user_mapping_changed_v1 import *
 from .p2_corehr_common_data_meta_data_updated_v1 import *
 from .p2_corehr_contract_created_v1 import *
 from .p2_corehr_contract_deleted_v1 import *

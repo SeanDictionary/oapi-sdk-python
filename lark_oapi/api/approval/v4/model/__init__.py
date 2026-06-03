@@ -14,6 +14,7 @@ from .approval_viewer import *
 from .approval_viewer_info import *
 from .approver_chosen_range import *
 from .approver_range import *
+from .bank_account import *
 from .cc_node import *
 from .cc_search import *
 from .cc_search_item import *
@@ -27,6 +28,9 @@ from .connector_log_data import *
 from .count import *
 from .definition import *
 from .department_id import *
+from .district import *
+from .district_base_info import *
+from .entity_process_record import *
 from .exteranl_instance_check import *
 from .exteranl_instance_check_response import *
 from .external_approval import *
@@ -50,6 +54,7 @@ from .instance_cc_user import *
 from .instance_comment import *
 from .instance_create import *
 from .instance_detail_scenario_context import *
+from .instance_draft import *
 from .instance_search import *
 from .instance_search_approval import *
 from .instance_search_approval_external import *
@@ -80,7 +85,9 @@ from .node_auto_approval import *
 from .node_cc import *
 from .object_context import *
 from .open_widget_instance import *
+from .pair import *
 from .preview_node import *
+from .process_record import *
 from .reason import *
 from .remedy_group import *
 from .revert_event import *
@@ -102,6 +109,14 @@ from .trip_group import *
 from .trip_group_schedule import *
 from .trusteeship_instance_cache_config import *
 from .trusteeship_urls import *
+from .uat_current_node import *
+from .uat_instance import *
+from .uat_instance_cc_user import *
+from .uat_instance_comment import *
+from .uat_instance_task import *
+from .uat_instance_timeline import *
+from .uat_task import *
+from .uat_task_user import *
 from .url_detail import *
 from .user import *
 from .user_id import *
@@ -110,6 +125,9 @@ from .create_approval_request import *
 from .get_approval_request import *
 from .subscribe_approval_request import *
 from .unsubscribe_approval_request import *
+from .list_district_request import *
+from .search_district_request_body import *
+from .search_district_request import *
 from .create_external_approval_request import *
 from .get_external_approval_request import *
 from .check_external_instance_request_body import *
@@ -145,6 +163,10 @@ from .get_approval_response_body import *
 from .get_approval_response import *
 from .subscribe_approval_response import *
 from .unsubscribe_approval_response import *
+from .list_district_response_body import *
+from .list_district_response import *
+from .search_district_response_body import *
+from .search_district_response import *
 from .create_external_approval_response_body import *
 from .create_external_approval_response import *
 from .get_external_approval_response_body import *
